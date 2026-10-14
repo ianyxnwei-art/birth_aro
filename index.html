@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birthday Archery Game - Pink Edition</title>
+    <!-- Canvas Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #f8bbd0;
+            font-family: 'Georgia', serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            transition: background-color 2s ease;
+        }
+
+        .header-container {
+            text-align: center;
+            margin-bottom: 12px;
+            transition: opacity 1.5s ease;
+        }
+
+        h1 {
+            color: #ad1457;
+            font-size: 2.2rem;
+            margin-bottom: 6px;
+            text-shadow: 0 0 10px rgba(255, 64, 129, 0.3);
+        }
+
+        .round-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ff4081, #d81b60);
+            color: #fff;
+            font-weight: bold;
+            padding: 6px 18px;
+            border-radius: 16px;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 12px rgba(216, 27, 96, 0.3);
+            letter-spacing: 0.5px;
+        }
+
+        p.instructions {
+            color: #880e4f;
+            font-weight: 600;
+            font-size: 1.1rem;
+            font-style: italic;
+        }
+
+        #gameCanvas {
+            background: #ffe6ed;
+            border: 5px solid #ff4081;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(216, 27, 96, 0.25);
+            cursor: pointer;
+            touch-action: none;
+            transition: opacity 1.5s ease, background 2s ease, border-color 2s ease;
+        }
+
+        .fade-out {
+            opacity: 0 !important;
+            pointer-events: none;
+        }
+
+        /* Final Message Container Overlay */
+        #finalMessageOverlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 85%;
+            max-width: 580px;
+            color: #fce4ec;
+            text-align: center;
+            font-family: 'Georgia', serif;
+            line-height: 1.7;
+            font-size: 1.15rem;
+            opacity: 0;
+            transition: opacity 2.5s ease-in-out;
+            pointer-events: none;
+            z-index: 10;
+            background: rgba(20, 20, 20, 0.75);
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 128, 171, 0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        }
+
+        #finalMessageOverlay.visible {
+            opacity: 1;
+        }
+
+        .highlight-text {
+            color: #ff80ab;
+            font-weight: bold;
+            font-size: 1.3rem;
+            display: block;
+            margin-bottom: 12px;
+        }
+
+        .closing-text {
+            color: #ff4081;
+            font-weight: bold;
+            margin-top: 15px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="header" class="header-container">
+        <h1>Happy Birthday! 🎂</h1>
+        <div id="roundBadge" class="round-badge">Round 1 / 3</div>
+        <p id="instructions" class="instructions">Pull back the bow 🏹 and release to shoot the 🩷 heart!</p>
+    </div>
+
+    <canvas id="gameCanvas" width="650" height="500"></canvas>
+
+    <!-- Final Heartfelt Message Container -->
+    <div id="finalMessageOverlay">
+        <span class="highlight-text">Heppy beday aroo yg ke 18 🎉</span>
+        Walaupun kita dah berjauhan skarang dan jarng chat ngn each other, ketahuilah bahawa aq masih mengingati mu aroo. i reallymiss our life back there. i know walaupun kita kuat gado wktu dlu, but we still need each other, uhuk uhuk. maafkan ku kerana tidak wish birthday mu awal. i wish kita masih lagi berkwan dan hubungn kita sperti y=mx+c. aq tk kisah berjauhan tapi aq harap tkde sapa bole putuskan pertalian persahabatan kita.<br>
+        <span class="closing-text">Anyways, heppy beday aroo lobe yu EEHHEH ❤️</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const roundBadge = document.getElementById('roundBadge');
+        const instructionsText = document.getElementById('instructions');
+        const header = document.getElementById('header');
+        const finalMessageOverlay = document.getElementById('finalMessageOverlay');
+
+        let currentRound = 1;
+
+        // Audio Context setup
+        let audioCtx;
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        // --- Upbeat Game BGM Synth ---
+        let bgmTimer = null;
+        let isBGMPlaying = false;
+
+        function startUpbeatBGM() {
+            if (isBGMPlaying) return;
+            isBGMPlaying = true;
+
+            const ctxAudio = getAudioContext();
+            
+            // Major, happy melody loop
+            const melody = [
+                { f: 523.25, d: 0.25 }, { f: 659.25, d: 0.25 }, { f: 783.99, d: 0.25 }, { f: 659.25, d: 0.25 },
+                { f: 880.00, d: 0.35 }, { f: 783.99, d: 0.35 }, { f: 659.25, d: 0.5 },
+                { f: 587.33, d: 0.25 }, { f: 659.25, d: 0.25 }, { f: 698.46, d: 0.25 }, { f: 659.25, d: 0.25 },
+                { f: 587.33, d: 0.35 }, { f: 523.25, d: 0.35 }, { f: 392.00, d: 0.5 }
+            ];
+
+            let noteIdx = 0;
+
+            function playNextNote() {
+                if (!isBGMPlaying) return;
+
+                const item = melody[noteIdx];
+                const osc = ctxAudio.createOscillator();
+                const gain = ctxAudio.createGain();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(item.f, ctxAudio.currentTime);
+
+                gain.gain.setValueAtTime(0.08, ctxAudio.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctxAudio.currentTime + item.d - 0.05);
+
+                osc.connect(gain);
+                gain.connect(ctxAudio.destination);
+
+                osc.start(ctxAudio.currentTime);
+                osc.stop(ctxAudio.currentTime + item.d);
+
+                noteIdx = (noteIdx + 1) % melody.length;
+                bgmTimer = setTimeout(playNextNote, item.d * 1000);
+            }
+
+            playNextNote();
+        }
+
+        function stopUpbeatBGM() {
+            isBGMPlaying = false;
+            if (bgmTimer) clearTimeout(bgmTimer);
+        }
+
+        // Camera sound
+        function playCameraSnapSound() {
+            const ctxAudio = getAudioContext();
+            const bufferSize = ctxAudio.sampleRate * 0.05;
+            const buffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+            const output = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.15));
+            }
+
+            const noise = ctxAudio.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = ctxAudio.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(1200, ctxAudio.currentTime);
+
+            const gain = ctxAudio.createGain();
+            gain.gain.setValueAtTime(0.8, ctxAudio.currentTime);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctxAudio.destination);
+            noise.start(ctxAudio.currentTime);
+        }
+
+        // Happy Birthday Synth Song Generator
+        function playHappyBirthdaySong(onComplete) {
+            stopUpbeatBGM();
+            const ctxAudio = getAudioContext();
+            const notes = {
+                'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23,
+                'G4': 392.00, 'A4': 440.00, 'B4': 493.88, 'C5': 523.25
+            };
+
+            const melody = [
+                { note: 'C4', dur: 0.4 }, { note: 'C4', dur: 0.4 }, { note: 'D4', dur: 0.8 }, { note: 'C4', dur: 0.8 }, { note: 'F4', dur: 0.8 }, { note: 'E4', dur: 1.2 },
+                { note: 'C4', dur: 0.4 }, { note: 'C4', dur: 0.4 }, { note: 'D4', dur: 0.8 }, { note: 'C4', dur: 0.8 }, { note: 'G4', dur: 0.8 }, { note: 'F4', dur: 1.2 },
+                { note: 'C4', dur: 0.4 }, { note: 'C4', dur: 0.4 }, { note: 'C5', dur: 0.8 }, { note: 'A4', dur: 0.8 }, { note: 'F4', dur: 0.8 }, { note: 'E4', dur: 0.8 }, { note: 'D4', dur: 1.2 },
+                { note: 'B4', dur: 0.4 }, { note: 'B4', dur: 0.4 }, { note: 'A4', dur: 0.8 }, { note: 'F4', dur: 0.8 }, { note: 'G4', dur: 0.8 }, { note: 'F4', dur: 1.5 }
+            ];
+
+            let now = ctxAudio.currentTime + 0.2;
+            let tempoScale = 1.3;
+
+            melody.forEach((item) => {
+                const osc = ctxAudio.createOscillator();
+                const gain = ctxAudio.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(notes[item.note], now);
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + (item.dur * tempoScale) - 0.05);
+
+                osc.connect(gain);
+                gain.connect(ctxAudio.destination);
+
+                osc.start(now);
+                osc.stop(now + (item.dur * tempoScale));
+
+                now += (item.dur * tempoScale);
+            });
+
+            const totalDuration = (now - ctxAudio.currentTime) * 1000;
+            setTimeout(() => {
+                if(onComplete) onComplete();
+            }, Math.max(totalDuration, 25000));
+        }
+
+        // Sad Emotional Piano Music Synthesizer for Final Letter
+        function playSadEmotionalTheme() {
+            const ctxAudio = getAudioContext();
+            
+            const chordProgression = [
+                [220.00, 261.63, 329.63], // Am
+                [174.61, 220.00, 261.63], // F
+                [130.81, 164.81, 196.00], // C
+                [196.00, 246.94, 293.66]  // G
+            ];
+
+            let chordIndex = 0;
+
+            function playChord() {
+                const now = ctxAudio.currentTime;
+                const notes = chordProgression[chordIndex % chordProgression.length];
+
+                notes.forEach((freq, idx) => {
+                    const osc = ctxAudio.createOscillator();
+                    const gain = ctxAudio.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(0.12, now + idx * 0.15 + 0.5);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.8);
+
+                    osc.connect(gain);
+                    gain.connect(ctxAudio.destination);
+
+                    osc.start(now + idx * 0.15);
+                    osc.stop(now + 4.0);
+                });
+
+                chordIndex++;
+                setTimeout(playChord, 3600);
+            }
+
+            playChord();
+        }
+
+        // Bow & Arrow setup
+        const bow = { x: canvas.width / 2, y: 420 };
+        let arrow = { x: bow.x, y: bow.y, vx: 0, vy: 0, length: 45, isFlying: false };
+        let isDragging = false;
+        let dragPos = { x: bow.x, y: bow.y };
+
+        const round2Emojis = ['🩷', '🌷', '💗', '🌸', '💞', '🧸', '🤍', '💓'];
+        let round2Targets = [];
+
+        let round3DodgeCount = 0;
+        const round3Texts = ["uih, tak dapat ke tuu~", "hhahahah Cuba lagi", "wahh! Tahniah AHAHAAH"];
+        let currentMessage = "";
+        let round3Target = { x: canvas.width / 2, y: 120, radius: 30 };
+
+        // Game States Control
+        let isLetterState = false;
+        let isPrankState = false;
+        let letterPos = { x: canvas.width / 2, y: 220, radius: 40 };
+        let cameraPos = { x: canvas.width / 2, y: 180 };
+        
+        let cameraEmoji = "📷";
+        let prankTextProgress = "";
+        let fullPrankText = "alright.. Senyum 1.. 2.. 3..";
+        
+        let showPrankOnlyState = false;
+        let showCakeState = false;
+        let cakeScale = 1;
+        
+        let showBlowTextState = false;
+        let blowTextProgress = "";
+        let fullBlowText = "seblum tuu~ kna tiup lilin dulu.. 1..2.. 3";
+
+        let isDarkScreenState = false;
+        let showBigCakeState = false;
+        let showSprinklesState = false;
+        let sprinkles = [];
+        
+        let isFlippingToCard = false;
+        let cardScale = 1;
+        let showBigCardState = false;
+        
+        let showWandState = false;
+        let wand = { x: 520, y: 380, isDragging: false };
+        let cardHeartPos = { x: canvas.width / 2, y: 220, radius: 45 };
+        
+        let clearAllState = false;
+
+        function initRound(round) {
+            currentRound = round;
+            arrow.isFlying = false;
+            arrow.x = bow.x;
+            arrow.y = bow.y;
+
+            if (round === 1) {
+                roundBadge.innerText = "Round 1 / 3";
+                instructionsText.innerText = "Pull back the bow 🏹 and release to shoot the 🩷 heart!";
+            } else if (round === 2) {
+                roundBadge.innerText = "Round 2 / 3";
+                instructionsText.innerText = "Find and shoot the 🩷 heart among the floating gifts!";
+                round2Targets = round2Emojis.map((emoji, index) => ({
+                    emoji: emoji,
+                    isTarget: emoji === '🩷',
+                    x: 80 + (index % 4) * 140,
+                    y: 80 + Math.floor(index / 4) * 80,
+                    vx: (Math.random() - 0.5) * 2.5,
+                    vy: (Math.random() - 0.5) * 2.5,
+                    radius: 28
+                }));
+            } else if (round === 3) {
+                roundBadge.innerText = "Round 3 / 3";
+                instructionsText.innerText = "Shoot the final 🩷 heart... if you can hit it! 😜";
+                round3DodgeCount = 0;
+                round3Target.x = canvas.width / 2;
+                round3Target.y = 120;
+            }
+        }
+
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrag(e) {
+            startUpbeatBGM(); // Play happy background music on interaction
+
+            const pos = getPos(e);
+
+            if (isLetterState) {
+                const dist = Math.hypot(pos.x - letterPos.x, pos.y - letterPos.y);
+                if (dist < letterPos.radius + 15) {
+                    startPrankSequence();
+                }
+                return;
+            }
+
+            if (showWandState && !clearAllState) {
+                const dist = Math.hypot(pos.x - wand.x, pos.y - wand.y);
+                if (dist < 45) {
+                    wand.isDragging = true;
+                }
+                return;
+            }
+
+            if (arrow.isFlying || currentRound > 3) return;
+            if (Math.hypot(pos.x - bow.x, pos.y - bow.y) < 70) {
+                isDragging = true;
+                dragPos = pos;
+            }
+        }
+
+        function moveDrag(e) {
+            const pos = getPos(e);
+            if (wand.isDragging && !clearAllState) {
+                wand.x = pos.x;
+                wand.y = pos.y;
+
+                // Check collision between wand tip and heart on card
+                const wandTipX = wand.x - 20;
+                const wandTipY = wand.y - 20;
+                const distToHeart = Math.hypot(wandTipX - cardHeartPos.x, wandTipY - cardHeartPos.y);
+
+                if (distToHeart < cardHeartPos.radius) {
+                    wand.isDragging = false;
+                    triggerFinalClearAndText();
+                }
+                return;
+            }
+
+            if (!isDragging) return;
+            dragPos = pos;
+        }
+
+        function endDrag() {
+            if (wand.isDragging) {
+                wand.isDragging = false;
+            }
+
+            if (!isDragging) return;
+            isDragging = false;
+
+            const dx = bow.x - dragPos.x;
+            const dy = bow.y - dragPos.y;
+            
+            arrow.vx = dx * 0.16;
+            arrow.vy = dy * 0.16;
+            arrow.isFlying = true;
+        }
+
+        canvas.addEventListener('mousedown', startDrag);
+        canvas.addEventListener('mousemove', moveDrag);
+        window.addEventListener('mouseup', endDrag);
+
+        canvas.addEventListener('touchstart', startDrag);
+        canvas.addEventListener('touchmove', moveDrag);
+        window.addEventListener('touchend', endDrag);
+
+        function resetArrow() {
+            arrow.isFlying = false;
+            arrow.x = bow.x;
+            arrow.y = bow.y;
+        }
+
+        function dodgeRound3Target() {
+            const padding = 100;
+            round3Target.x = padding + Math.random() * (canvas.width - padding * 2);
+            round3Target.y = 80 + Math.random() * 140;
+        }
+
+        function transitionToLetter() {
+            setTimeout(() => {
+                currentRound = 5;
+                isLetterState = true;
+                currentMessage = "";
+            }, 2000);
+        }
+
+        function startPrankSequence() {
+            isLetterState = false;
+            isPrankState = true;
+            roundBadge.style.display = "none";
+            instructionsText.innerText = "";
+            
+            let charIndex = 0;
+            const typeInterval = setInterval(() => {
+                prankTextProgress += fullPrankText[charIndex];
+                charIndex++;
+                if (charIndex >= fullPrankText.length) {
+                    clearInterval(typeInterval);
+                    
+                    setTimeout(() => {
+                        playCameraSnapSound();
+                        cameraEmoji = "📸";
+
+                        setTimeout(() => {
+                            isPrankState = false;
+                            showPrankOnlyState = true;
+
+                            setTimeout(() => {
+                                triggerCakeFlipSequence();
+                            }, 2000);
+
+                        }, 800);
+                    }, 300);
+                }
+            }, 90);
+        }
+
+        function triggerCakeFlipSequence() {
+            let flipProgress = 0;
+            const flipInterval = setInterval(() => {
+                flipProgress += 0.1;
+                cakeScale = Math.cos(flipProgress * Math.PI);
+                
+                if (flipProgress >= 0.5 && showPrankOnlyState) {
+                    showPrankOnlyState = false;
+                    showCakeState = true;
+                }
+                
+                if (flipProgress >= 1) {
+                    clearInterval(flipInterval);
+                    cakeScale = 1;
+
+                    setTimeout(() => {
+                        startBlowTextSequence();
+                    }, 2000);
+                }
+            }, 30);
+        }
+
+        function startBlowTextSequence() {
+            showBlowTextState = true;
+            let charIndex = 0;
+            
+            const blowTypeInterval = setInterval(() => {
+                blowTextProgress += fullBlowText[charIndex];
+                charIndex++;
+                if (charIndex >= fullBlowText.length) {
+                    clearInterval(blowTypeInterval);
+
+                    setTimeout(() => {
+                        showCakeState = false;
+                        showBlowTextState = false;
+                        header.classList.add('fade-out');
+                        document.body.style.backgroundColor = '#0b0b0d';
+                        canvas.style.background = '#121215';
+                        canvas.style.borderColor = '#d81b60';
+                        
+                        isDarkScreenState = true;
+                        
+                        setTimeout(() => {
+                            startBigCakeSequence();
+                        }, 1000);
+                    }, 800);
+                }
+            }, 100);
+        }
+
+        function startBigCakeSequence() {
+            showBigCakeState = true;
+            
+            playHappyBirthdaySong(() => {
+                showSprinklesState = true;
+                createSprinkles();
+
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 100, spread: 70, origin: { x: 0.2, y: 0.5 } });
+                    confetti({ particleCount: 100, spread: 70, origin: { x: 0.8, y: 0.5 } });
+                }
+
+                setTimeout(() => {
+                    showSprinklesState = false;
+                    flipToBigCardSequence();
+                }, 4000);
+            });
+        }
+
+        function createSprinkles() {
+            sprinkles = [];
+            const colors = ['#ff4081', '#ffeb3b', '#00e676', '#00b0ff', '#ea80fc', '#ffffff'];
+            for (let i = 0; i < 60; i++) {
+                sprinkles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * -200,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: 2 + Math.random() * 3,
+                    size: 6 + Math.random() * 6,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    angle: Math.random() * Math.PI
+                });
+            }
+        }
+
+        function flipToBigCardSequence() {
+            isFlippingToCard = true;
+            let flipProgress = 0;
+
+            const flipInterval = setInterval(() => {
+                flipProgress += 0.08;
+                cardScale = Math.cos(flipProgress * Math.PI);
+
+                if (flipProgress >= 0.5 && showBigCakeState) {
+                    showBigCakeState = false;
+                    showBigCardState = true;
+                }
+
+                if (flipProgress >= 1) {
+                    clearInterval(flipInterval);
+                    cardScale = 1;
+                    isFlippingToCard = false;
+
+                    setTimeout(() => {
+                        showWandState = true;
+                    }, 2000);
+                }
+            }, 30);
+        }
+
+        // When Wand touches Heart: Clear screen + Play sad piano + Fade in text overlay
+        function triggerFinalClearAndText() {
+            clearAllState = true;
+            showBigCardState = false;
+            showWandState = false;
+
+            // Trigger soft magical confetti
+            if (typeof confetti === 'function') {
+                confetti({ particleCount: 80, spread: 90, origin: { y: 0.5 } });
+            }
+
+            // Fade background completely to deep night ambient
+            document.body.style.backgroundColor = '#050508';
+            canvas.style.opacity = '0';
+
+            // Play Sad Emotional Piano Theme
+            playSadEmotionalTheme();
+
+            // Fade in emotional birthday message
+            setTimeout(() => {
+                finalMessageOverlay.classList.add('visible');
+            }, 800);
+        }
+
+        function drawEmoji(emoji, x, y, size = 45, scaleX = 1) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scaleX, 1);
+            ctx.font = `${size}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(emoji, 0, 0);
+            ctx.restore();
+        }
+
+        function drawBow() {
+            ctx.save();
+            ctx.strokeStyle = "#ff4081";
+            ctx.lineWidth = 7;
+
+            ctx.beginPath();
+            ctx.arc(bow.x, bow.y, 40, Math.PI * 0.2, Math.PI * 0.8, false);
+            ctx.stroke();
+
+            ctx.strokeStyle = "#f48fb1";
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            const stringX = isDragging ? dragPos.x : bow.x;
+            const stringY = isDragging ? dragPos.y : bow.y + 35;
+            
+            ctx.moveTo(bow.x - 38, bow.y + 12);
+            ctx.lineTo(stringX, stringY);
+            ctx.lineTo(bow.x + 38, bow.y + 12);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawArrow(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            ctx.strokeStyle = "#d81b60";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -arrow.length);
+            ctx.stroke();
+
+            ctx.fillStyle = "#ff4081";
+            ctx.beginPath();
+            ctx.moveTo(0, -arrow.length - 8);
+            ctx.lineTo(-6, -arrow.length + 2);
+            ctx.lineTo(6, -arrow.length + 2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (clearAllState) {
+                requestAnimationFrame(update);
+                return;
+            }
+
+            // ROUND 1
+            if (currentRound === 1) {
+                drawEmoji("🩷", canvas.width / 2, 110, 50);
+
+                if (arrow.isFlying) {
+                    const dist = Math.hypot(arrow.x - (canvas.width / 2), arrow.y - 110);
+                    if (dist < 35) initRound(2);
+                }
+            } 
+            // ROUND 2
+            else if (currentRound === 2) {
+                round2Targets.forEach(t => {
+                    t.x += t.vx;
+                    t.y += t.vy;
+
+                    if (t.x < 40 || t.x > canvas.width - 40) t.vx *= -1;
+                    if (t.y < 40 || t.y > 260) t.vy *= -1;
+
+                    drawEmoji(t.emoji, t.x, t.y, 40);
+
+                    if (arrow.isFlying) {
+                        const dist = Math.hypot(arrow.x - t.x, arrow.y - t.y);
+                        if (dist < t.radius) {
+                            if (t.isTarget) initRound(3);
+                            else resetArrow();
+                        }
+                    }
+                });
+            } 
+            // ROUND 3
+            else if (currentRound === 3) {
+                drawEmoji("🩷", round3Target.x, round3Target.y, 50);
+
+                if (arrow.isFlying) {
+                    const dist = Math.hypot(arrow.x - round3Target.x, arrow.y - round3Target.y);
+                    if (dist < 90) {
+                        currentMessage = round3Texts[round3DodgeCount];
+                        if (round3DodgeCount < 2) {
+                            round3DodgeCount++;
+                            dodgeRound3Target();
+                            resetArrow();
+                        } else {
+                            currentRound = 4;
+                            arrow.isFlying = false;
+
+                            if (typeof confetti === 'function') {
+                                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+                            }
+                            transitionToLetter();
+                        }
+                    }
+                }
+
+                if (currentMessage) {
+                    ctx.fillStyle = "#ad1457";
+                    ctx.font = "bold 22px Georgia, serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(currentMessage, canvas.width / 2, 260);
+                }
+            } 
+            // ROUND 4: HIT 💘
+            else if (currentRound === 4) {
+                drawEmoji("💘", round3Target.x, round3Target.y, 75);
+                ctx.fillStyle = "#ad1457";
+                ctx.font = "bold 22px Georgia, serif";
+                ctx.textAlign = "center";
+                ctx.fillText(currentMessage, canvas.width / 2, 260);
+            } 
+            // LETTER
+            else if (isLetterState) {
+                drawEmoji("💌", letterPos.x, letterPos.y, 80);
+                ctx.fillStyle = "#d81b60";
+                ctx.font = "bold 22px Georgia, serif";
+                ctx.textAlign = "center";
+                ctx.fillText("surat cinter", letterPos.x, letterPos.y + 60);
+            } 
+            // CAMERA PRANK TYPING
+            else if (isPrankState) {
+                drawEmoji(cameraEmoji, cameraPos.x, cameraPos.y, 80);
+                ctx.fillStyle = "#880e4f";
+                ctx.font = "bold 22px Georgia, serif";
+                ctx.textAlign = "center";
+                ctx.fillText(prankTextProgress, canvas.width / 2, cameraPos.y + 70);
+            }
+            // BIG "eheheh kena prankk"
+            else if (showPrankOnlyState) {
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.scale(cakeScale, 1);
+                ctx.fillStyle = "#d81b60";
+                ctx.font = "bold 34px Georgia, serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("eheheh kena prankk", 0, 0);
+                ctx.restore();
+            }
+            // 🎂 CAKE BEFORE DARK
+            else if (showCakeState) {
+                drawEmoji("🎂", canvas.width / 2, 180, 90, cakeScale);
+
+                if (showBlowTextState) {
+                    ctx.fillStyle = "#880e4f";
+                    ctx.font = "italic bold 22px Georgia, serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(blowTextProgress, canvas.width / 2, 310);
+                }
+            }
+
+            // BIG CAKE & SPRINKLES SEQUENCE ON DARK CANVAS
+            if (showBigCakeState) {
+                drawEmoji("🎂", canvas.width / 2, canvas.height / 2 - 20, 160, cardScale);
+
+                if (showSprinklesState) {
+                    drawEmoji("🎉", 80, 120, 70);
+                    drawEmoji("🎉", canvas.width - 80, 120, 70);
+
+                    sprinkles.forEach(s => {
+                        s.y += s.vy;
+                        s.x += s.vx;
+                        s.angle += 0.05;
+
+                        ctx.save();
+                        ctx.translate(s.x, s.y);
+                        ctx.rotate(s.angle);
+                        ctx.fillStyle = s.color;
+                        ctx.fillRect(-s.size / 2, -s.size / 2, s.size, s.size * 1.5);
+                        ctx.restore();
+                    });
+                }
+            }
+
+            // BIG 💌 CARD & MAGIC WAND SEQUENCE
+            if (showBigCardState) {
+                drawEmoji("💌", canvas.width / 2, canvas.height / 2 - 30, 180, cardScale);
+                drawEmoji("❤️", cardHeartPos.x, cardHeartPos.y, 45, cardScale);
+
+                if (showWandState) {
+                    ctx.fillStyle = "#ff80ab";
+                    ctx.font = "bold 18px Georgia, serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Drag the 🪄 to touch the ❤️ heart!", canvas.width / 2, 430);
+                    drawEmoji("🪄", wand.x, wand.y, 65);
+                }
+            }
+
+            // DRAW BOW & ARROW (Active during rounds 1 - 3)
+            if (currentRound <= 3) {
+                drawBow();
+
+                if (arrow.isFlying) {
+                    arrow.x += arrow.vx;
+                    arrow.y += arrow.vy;
+                    const angle = Math.atan2(arrow.vy, arrow.vx) + Math.PI / 2;
+                    drawArrow(arrow.x, arrow.y, angle);
+
+                    if (arrow.x < 0 || arrow.x > canvas.width || arrow.y < 0 || arrow.y > canvas.height) {
+                        resetArrow();
+                    }
+                } else if (isDragging) {
+                    const angle = Math.atan2(bow.y - dragPos.y, bow.x - dragPos.x) - Math.PI / 2;
+                    drawArrow(bow.x, bow.y, angle);
+                } else {
+                    drawArrow(bow.x, bow.y, 0);
+                }
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        initRound(1);
+        update();
+    </script>
+</body>
+</html>
